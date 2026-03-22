@@ -5,22 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>서연의 미로 게임</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       background: #111;
+      color: white;
       font-family: Arial, sans-serif;
       text-align: center;
-      color: white;
     }
+
+    h1 {
+      margin: 12px 0 4px;
+      font-size: 24px;
+    }
+
+    .help {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: #ddd;
+    }
+
     canvas {
-      background: #111;
       display: block;
-      margin: 20px auto;
+      margin: 0 auto 20px;
+      background: #111;
       border: 2px solid #444;
+      max-width: 95vw;
+      height: auto;
     }
   </style>
 </head>
 <body>
+  <h1>서연의 미로 게임</h1>
+  <div class="help">캐릭터 선택: 왼쪽 클릭 / 오른쪽 클릭 또는 키보드 1, 2</div>
+
   <canvas id="game" width="500" height="500"></canvas>
 
   <script>
@@ -28,6 +49,8 @@
     const ctx = canvas.getContext("2d");
 
     const tile = 50;
+    const ROWS = 10;
+    const COLS = 10;
 
     let gameState = "select"; // select, play, win
     let selectedChar = null;
@@ -37,7 +60,7 @@
     const player = {
       x: 60,
       y: 60,
-      size: 34,
+      size: 32,
       speed: 10
     };
 
@@ -50,8 +73,8 @@
     char1.onload = () => { char1Loaded = true; };
     char2.onload = () => { char2Loaded = true; };
 
-    char1.onerror = () => { console.log("char1 image load failed"); };
-    char2.onerror = () => { console.log("char2 image load failed"); };
+    char1.onerror = () => { console.log("다이아나핑1.jpg 로드 실패"); };
+    char2.onerror = () => { console.log("다이아나핑2.jpg 로드 실패"); };
 
     char1.src = "다이아나핑1.jpg";
     char2.src = "다이아나핑2.jpg";
@@ -66,21 +89,26 @@
       [1,1,1,1,0,1,1,1,0,1],
       [1,0,0,1,0,0,0,1,0,1],
       [1,0,0,0,0,1,0,0,0,1],
-      [1,1,1,1,1,1,1,1,1,1],
+      [1,1,1,1,1,1,1,1,1,1]
     ];
 
     const stars = [
-      { x: 100, y: 60, collected: false },
-      { x: 150, y: 200, collected: false },
-      { x: 200, y: 400, collected: false },
-      { x: 300, y: 100, collected: false },
-      { x: 350, y: 250, collected: false },
-      { x: 400, y: 150, collected: false },
-      { x: 100, y: 350, collected: false },
-      { x: 250, y: 300, collected: false },
-      { x: 400, y: 400, collected: false },
-      { x: 300, y: 450, collected: false }
+      { x: 110, y: 80, collected: false },
+      { x: 160, y: 210, collected: false },
+      { x: 210, y: 410, collected: false },
+      { x: 310, y: 110, collected: false },
+      { x: 360, y: 260, collected: false },
+      { x: 410, y: 160, collected: false },
+      { x: 110, y: 360, collected: false },
+      { x: 260, y: 310, collected: false },
+      { x: 410, y: 410, collected: false },
+      { x: 310, y: 460, collected: false }
     ];
+
+    function resetPlayer() {
+      player.x = 60;
+      player.y = 60;
+    }
 
     function isWall(x, y) {
       const left = Math.floor(x / tile);
@@ -89,8 +117,8 @@
       const bottom = Math.floor((y + player.size - 1) / tile);
 
       if (
-        top < 0 || bottom >= maze.length ||
-        left < 0 || right >= maze[0].length
+        left < 0 || right >= COLS ||
+        top < 0 || bottom >= ROWS
       ) {
         return true;
       }
@@ -103,7 +131,55 @@
       );
     }
 
+    function checkStarCollection() {
+      for (const s of stars) {
+        if (!s.collected) {
+          const hit =
+            Math.abs((player.x + player.size / 2) - s.x) < 18 &&
+            Math.abs((player.y + player.size / 2) - s.y) < 18;
+
+          if (hit) {
+            s.collected = true;
+            score++;
+          }
+        }
+      }
+
+      if (score === 10 && !door) {
+        door = { x: 405, y: 55, w: 30, h: 42 };
+      }
+    }
+
+    function checkDoor() {
+      if (!door) return;
+
+      const hit =
+        player.x < door.x + door.w &&
+        player.x + player.size > door.x &&
+        player.y < door.y + door.h &&
+        player.y + player.size > door.y;
+
+      if (hit) {
+        gameState = "win";
+      }
+    }
+
+    function startGameWithCharacter(character) {
+      selectedChar = character;
+      resetPlayer();
+      gameState = "play";
+    }
+
     document.addEventListener("keydown", (e) => {
+      if (gameState === "select") {
+        if (e.key === "1") {
+          startGameWithCharacter(char1);
+        } else if (e.key === "2") {
+          startGameWithCharacter(char2);
+        }
+        return;
+      }
+
       if (gameState !== "play") return;
 
       let nx = player.x;
@@ -127,89 +203,70 @@
       if (gameState !== "select") return;
 
       const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
 
-      if (mx >= 60 && mx <= 200 && my >= 150 && my <= 320) {
-        selectedChar = char1;
-        gameState = "play";
-      } else if (mx >= 300 && mx <= 440 && my >= 150 && my <= 320) {
-        selectedChar = char2;
-        gameState = "play";
+      const mx = (e.clientX - rect.left) * scaleX;
+      const my = (e.clientY - rect.top) * scaleY;
+
+      console.log("click:", mx, my);
+
+      if (mx < canvas.width / 2) {
+        startGameWithCharacter(char1);
+      } else {
+        startGameWithCharacter(char2);
       }
     });
 
-    function checkStarCollection() {
-      for (const s of stars) {
-        if (!s.collected) {
-          const hit =
-            Math.abs((player.x + 15) - s.x) < 20 &&
-            Math.abs((player.y + 15) - s.y) < 20;
-
-          if (hit) {
-            s.collected = true;
-            score++;
-          }
-        }
-      }
-
-      if (score === 10 && !door) {
-        door = { x: 400, y: 50, w: 35, h: 45 };
-      }
-    }
-
-    function checkDoor() {
-      if (!door) return;
-
-      const hit =
-        player.x < door.x + door.w &&
-        player.x + player.size > door.x &&
-        player.y < door.y + door.h &&
-        player.y + player.size > door.y;
-
-      if (hit) {
-        gameState = "win";
-      }
-    }
-
     function drawMaze() {
-      for (let y = 0; y < maze.length; y++) {
-        for (let x = 0; x < maze[y].length; x++) {
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
           if (maze[y][x] === 1) {
             ctx.fillStyle = "#666";
             ctx.fillRect(x * tile, y * tile, tile, tile);
           } else {
-            ctx.fillStyle = "#1a1a1a";
+            ctx.fillStyle = "#1b1b1b";
             ctx.fillRect(x * tile, y * tile, tile, tile);
           }
+
+          ctx.strokeStyle = "#222";
+          ctx.strokeRect(x * tile, y * tile, tile, tile);
         }
       }
+    }
+
+    function drawStarShape(x, y) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.fillStyle = "yellow";
+      ctx.arc(x, y, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     function drawStars() {
       for (const s of stars) {
         if (!s.collected) {
-          ctx.fillStyle = "yellow";
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, 8, 0, Math.PI * 2);
-          ctx.fill();
+          drawStarShape(s.x, s.y);
         }
       }
     }
 
     function drawDoor() {
       if (!door) return;
-      ctx.fillStyle = "#4aa3ff";
+
+      ctx.fillStyle = "#3b82f6";
       ctx.fillRect(door.x, door.y, door.w, door.h);
+
       ctx.fillStyle = "white";
-      ctx.fillRect(door.x + 8, door.y + 20, 6, 6);
+      ctx.fillRect(door.x + 10, door.y + 18, 5, 5);
     }
 
     function drawPlayer() {
       if (selectedChar && selectedChar.complete && selectedChar.naturalWidth > 0) {
         ctx.drawImage(selectedChar, player.x, player.y, player.size, player.size);
       } else {
-        ctx.fillStyle = "hotpink";
+        ctx.fillStyle = "#ff69b4";
         ctx.fillRect(player.x, player.y, player.size, player.size);
       }
     }
@@ -220,45 +277,35 @@
 
       ctx.fillStyle = "white";
       ctx.font = "24px Arial";
-      ctx.fillText("캐릭터 선택", 180, 60);
+      ctx.fillText("캐릭터 선택", 180, 50);
 
-      ctx.strokeStyle = "#888";
+      ctx.strokeStyle = "#777";
       ctx.lineWidth = 3;
-      ctx.strokeRect(60, 150, 140, 170);
-      ctx.strokeRect(300, 150, 140, 170);
+      ctx.strokeRect(45, 95, 170, 250);
+      ctx.strokeRect(285, 95, 170, 250);
 
       if (char1Loaded) {
-        ctx.drawImage(char1, 80, 170, 100, 100);
+        ctx.drawImage(char1, 60, 130, 120, 120);
       } else {
         ctx.fillStyle = "#555";
-        ctx.fillRect(80, 170, 100, 100);
+        ctx.fillRect(60, 130, 120, 120);
       }
 
       if (char2Loaded) {
-        ctx.drawImage(char2, 320, 170, 100, 100);
+        ctx.drawImage(char2, 300, 130, 120, 120);
       } else {
         ctx.fillStyle = "#555";
-        ctx.fillRect(320, 170, 100, 100);
+        ctx.fillRect(300, 130, 120, 120);
       }
 
       ctx.fillStyle = "white";
       ctx.font = "18px Arial";
-      ctx.fillText("왼쪽 캐릭터", 82, 295);
-      ctx.fillText("오른쪽 캐릭터", 322, 295);
-      ctx.font = "14px Arial";
-      ctx.fillText("그림을 클릭해서 선택", 175, 360);
-    }
+      ctx.fillText("왼쪽 클릭", 88, 285);
+      ctx.fillText("오른쪽 클릭", 326, 285);
 
-    function drawWinScreen() {
-      ctx.fillStyle = "#111";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = "white";
-      ctx.font = "36px Arial";
-      ctx.fillText("성공!", 205, 220);
-
-      ctx.font = "20px Arial";
-      ctx.fillText("별 10개를 모으고 문에 도착했어요", 105, 270);
+      ctx.font = "16px Arial";
+      ctx.fillText("또는 키보드 1 / 2", 175, 380);
+      ctx.fillText("왼쪽 반 또는 오른쪽 반을 눌러도 선택돼요", 105, 410);
     }
 
     function drawPlayScreen() {
@@ -272,8 +319,20 @@
       ctx.fillText("별: " + score + " / 10", 12, 24);
 
       if (score === 10 && door) {
-        ctx.fillText("문이 나타났어요!", 320, 24);
+        ctx.fillText("문이 나타났어요!", 315, 24);
       }
+    }
+
+    function drawWinScreen() {
+      ctx.fillStyle = "#111";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "white";
+      ctx.font = "36px Arial";
+      ctx.fillText("성공!", 200, 200);
+
+      ctx.font = "20px Arial";
+      ctx.fillText("별 10개를 모으고 문에 도착했어요", 100, 250);
     }
 
     function draw() {
