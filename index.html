@@ -1,170 +1,296 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-<meta charset="UTF-8">
-<title>서연의 미로 게임</title>
-<style>
-  canvas { background: #111; display: block; margin: auto; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>서연의 미로 게임</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      color: white;
+    }
+    canvas {
+      background: #111;
+      display: block;
+      margin: 20px auto;
+      border: 2px solid #444;
+    }
+  </style>
 </head>
 <body>
+  <canvas id="game" width="500" height="500"></canvas>
 
-<canvas id="game" width="500" height="500"></canvas>
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
 
-<script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+    const tile = 50;
 
-// 상태
-let gameState = "select"; // select → play
+    let gameState = "select"; // select, play, win
+    let selectedChar = null;
+    let score = 0;
+    let door = null;
 
-// 캐릭터 이미지
-let char1 = new Image();
-char1.src = "다이아나핑1.jpg";
+    const player = {
+      x: 60,
+      y: 60,
+      size: 34,
+      speed: 10
+    };
 
-let char2 = new Image();
-char2.src = "다이아나핑2.jpg";
+    const char1 = new Image();
+    const char2 = new Image();
 
-let player = { x: 40, y: 40, size: 30 };
-let selectedChar = null;
+    let char1Loaded = false;
+    let char2Loaded = false;
 
-let stars = [];
-let score = 0;
-let door = null;
+    char1.onload = () => { char1Loaded = true; };
+    char2.onload = () => { char2Loaded = true; };
 
-// 미로 (1 = 벽)
-const maze = [
-[1,1,1,1,1,1,1,1,1,1],
-[1,0,0,0,1,0,0,0,0,1],
-[1,0,1,0,1,0,1,1,0,1],
-[1,0,1,0,0,0,0,1,0,1],
-[1,0,1,1,1,1,0,1,0,1],
-[1,0,0,0,0,1,0,0,0,1],
-[1,1,1,1,0,1,1,1,0,1],
-[1,0,0,1,0,0,0,1,0,1],
-[1,0,0,0,0,1,0,0,0,1],
-[1,1,1,1,1,1,1,1,1,1],
-];
+    char1.onerror = () => { console.log("char1 image load failed"); };
+    char2.onerror = () => { console.log("char2 image load failed"); };
 
-const tile = 50;
+    char1.src = "다이아나핑1.jpg";
+    char2.src = "다이아나핑2.jpg";
 
-// 별 생성
-for(let i=0;i<10;i++){
-  stars.push({
-    x: Math.floor(Math.random()*8+1)*tile+15,
-    y: Math.floor(Math.random()*8+1)*tile+15,
-    collected:false
-  });
-}
+    const maze = [
+      [1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,1,0,0,0,0,1],
+      [1,0,1,0,1,0,1,1,0,1],
+      [1,0,1,0,0,0,0,1,0,1],
+      [1,0,1,1,1,1,0,1,0,1],
+      [1,0,0,0,0,1,0,0,0,1],
+      [1,1,1,1,0,1,1,1,0,1],
+      [1,0,0,1,0,0,0,1,0,1],
+      [1,0,0,0,0,1,0,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1],
+    ];
 
-// 키 입력
-document.addEventListener("keydown", (e)=>{
-  if(gameState !== "play") return;
+    const stars = [
+      { x: 100, y: 60, collected: false },
+      { x: 150, y: 200, collected: false },
+      { x: 200, y: 400, collected: false },
+      { x: 300, y: 100, collected: false },
+      { x: 350, y: 250, collected: false },
+      { x: 400, y: 150, collected: false },
+      { x: 100, y: 350, collected: false },
+      { x: 250, y: 300, collected: false },
+      { x: 400, y: 400, collected: false },
+      { x: 300, y: 450, collected: false }
+    ];
 
-  let nx = player.x;
-  let ny = player.y;
+    function isWall(x, y) {
+      const left = Math.floor(x / tile);
+      const right = Math.floor((x + player.size - 1) / tile);
+      const top = Math.floor(y / tile);
+      const bottom = Math.floor((y + player.size - 1) / tile);
 
-  if(e.key==="ArrowUp") ny -= 10;
-  if(e.key==="ArrowDown") ny += 10;
-  if(e.key==="ArrowLeft") nx -= 10;
-  if(e.key==="ArrowRight") nx += 10;
+      if (
+        top < 0 || bottom >= maze.length ||
+        left < 0 || right >= maze[0].length
+      ) {
+        return true;
+      }
 
-  if(!isWall(nx, ny)){
-    player.x = nx;
-    player.y = ny;
-  }
-});
-
-function isWall(x,y){
-  let gx = Math.floor(x/tile);
-  let gy = Math.floor(y/tile);
-  return maze[gy][gx]===1;
-}
-
-// 클릭 선택
-canvas.addEventListener("click",(e)=>{
-  if(gameState==="select"){
-    if(e.offsetX < 250){
-      selectedChar = char1;
-    } else {
-      selectedChar = char2;
+      return (
+        maze[top][left] === 1 ||
+        maze[top][right] === 1 ||
+        maze[bottom][left] === 1 ||
+        maze[bottom][right] === 1
+      );
     }
-    gameState="play";
-  }
-});
 
-// 그리기
-function draw(){
+    document.addEventListener("keydown", (e) => {
+      if (gameState !== "play") return;
 
-  ctx.clearRect(0,0,500,500);
+      let nx = player.x;
+      let ny = player.y;
 
-  if(gameState==="select"){
-    ctx.fillStyle="white";
-    ctx.fillText("캐릭터 선택",180,50);
+      if (e.key === "ArrowUp") ny -= player.speed;
+      if (e.key === "ArrowDown") ny += player.speed;
+      if (e.key === "ArrowLeft") nx -= player.speed;
+      if (e.key === "ArrowRight") nx += player.speed;
 
-    ctx.drawImage(char1,50,150,100,100);
-    ctx.drawImage(char2,300,150,100,100);
+      if (!isWall(nx, ny)) {
+        player.x = nx;
+        player.y = ny;
+      }
 
-    ctx.fillText("왼쪽 클릭",80,280);
-    ctx.fillText("오른쪽 클릭",320,280);
-    return;
-  }
+      checkStarCollection();
+      checkDoor();
+    });
 
-  // 미로
-  for(let y=0;y<10;y++){
-    for(let x=0;x<10;x++){
-      if(maze[y][x]===1){
-        ctx.fillStyle="gray";
-        ctx.fillRect(x*tile,y*tile,tile,tile);
+    canvas.addEventListener("click", (e) => {
+      if (gameState !== "select") return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      if (mx >= 60 && mx <= 200 && my >= 150 && my <= 320) {
+        selectedChar = char1;
+        gameState = "play";
+      } else if (mx >= 300 && mx <= 440 && my >= 150 && my <= 320) {
+        selectedChar = char2;
+        gameState = "play";
+      }
+    });
+
+    function checkStarCollection() {
+      for (const s of stars) {
+        if (!s.collected) {
+          const hit =
+            Math.abs((player.x + 15) - s.x) < 20 &&
+            Math.abs((player.y + 15) - s.y) < 20;
+
+          if (hit) {
+            s.collected = true;
+            score++;
+          }
+        }
+      }
+
+      if (score === 10 && !door) {
+        door = { x: 400, y: 50, w: 35, h: 45 };
       }
     }
-  }
 
-  // 별
-  stars.forEach(s=>{
-    if(!s.collected){
-      ctx.fillStyle="yellow";
-      ctx.fillRect(s.x,s.y,10,10);
+    function checkDoor() {
+      if (!door) return;
 
-      if(Math.abs(player.x-s.x)<20 && Math.abs(player.y-s.y)<20){
-        s.collected=true;
-        score++;
+      const hit =
+        player.x < door.x + door.w &&
+        player.x + player.size > door.x &&
+        player.y < door.y + door.h &&
+        player.y + player.size > door.y;
+
+      if (hit) {
+        gameState = "win";
       }
     }
-  });
 
-  // 문 생성
-  if(score===10 && !door){
-    door={x:400,y:400};
-  }
-
-  // 문
-  if(door){
-    ctx.fillStyle="blue";
-    ctx.fillRect(door.x,door.y,30,30);
-
-    if(Math.abs(player.x-door.x)<30 && Math.abs(player.y-door.y)<30){
-      ctx.fillStyle="white";
-      ctx.font="30px Arial";
-      ctx.fillText("성공!",200,250);
-      return;
+    function drawMaze() {
+      for (let y = 0; y < maze.length; y++) {
+        for (let x = 0; x < maze[y].length; x++) {
+          if (maze[y][x] === 1) {
+            ctx.fillStyle = "#666";
+            ctx.fillRect(x * tile, y * tile, tile, tile);
+          } else {
+            ctx.fillStyle = "#1a1a1a";
+            ctx.fillRect(x * tile, y * tile, tile, tile);
+          }
+        }
+      }
     }
-  }
 
-  // 캐릭터
-  if(selectedChar){
-    ctx.drawImage(selectedChar,player.x,player.y,30,30);
-  }
+    function drawStars() {
+      for (const s of stars) {
+        if (!s.collected) {
+          ctx.fillStyle = "yellow";
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
 
-  // 점수
-  ctx.fillStyle="white";
-  ctx.fillText("별: "+score,10,20);
+    function drawDoor() {
+      if (!door) return;
+      ctx.fillStyle = "#4aa3ff";
+      ctx.fillRect(door.x, door.y, door.w, door.h);
+      ctx.fillStyle = "white";
+      ctx.fillRect(door.x + 8, door.y + 20, 6, 6);
+    }
 
-  requestAnimationFrame(draw);
-}
+    function drawPlayer() {
+      if (selectedChar && selectedChar.complete && selectedChar.naturalWidth > 0) {
+        ctx.drawImage(selectedChar, player.x, player.y, player.size, player.size);
+      } else {
+        ctx.fillStyle = "hotpink";
+        ctx.fillRect(player.x, player.y, player.size, player.size);
+      }
+    }
 
-draw();
-</script>
+    function drawSelectScreen() {
+      ctx.fillStyle = "#111";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      ctx.fillStyle = "white";
+      ctx.font = "24px Arial";
+      ctx.fillText("캐릭터 선택", 180, 60);
+
+      ctx.strokeStyle = "#888";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(60, 150, 140, 170);
+      ctx.strokeRect(300, 150, 140, 170);
+
+      if (char1Loaded) {
+        ctx.drawImage(char1, 80, 170, 100, 100);
+      } else {
+        ctx.fillStyle = "#555";
+        ctx.fillRect(80, 170, 100, 100);
+      }
+
+      if (char2Loaded) {
+        ctx.drawImage(char2, 320, 170, 100, 100);
+      } else {
+        ctx.fillStyle = "#555";
+        ctx.fillRect(320, 170, 100, 100);
+      }
+
+      ctx.fillStyle = "white";
+      ctx.font = "18px Arial";
+      ctx.fillText("왼쪽 캐릭터", 82, 295);
+      ctx.fillText("오른쪽 캐릭터", 322, 295);
+      ctx.font = "14px Arial";
+      ctx.fillText("그림을 클릭해서 선택", 175, 360);
+    }
+
+    function drawWinScreen() {
+      ctx.fillStyle = "#111";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "white";
+      ctx.font = "36px Arial";
+      ctx.fillText("성공!", 205, 220);
+
+      ctx.font = "20px Arial";
+      ctx.fillText("별 10개를 모으고 문에 도착했어요", 105, 270);
+    }
+
+    function drawPlayScreen() {
+      drawMaze();
+      drawStars();
+      drawDoor();
+      drawPlayer();
+
+      ctx.fillStyle = "white";
+      ctx.font = "20px Arial";
+      ctx.fillText("별: " + score + " / 10", 12, 24);
+
+      if (score === 10 && door) {
+        ctx.fillText("문이 나타났어요!", 320, 24);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (gameState === "select") {
+        drawSelectScreen();
+      } else if (gameState === "play") {
+        drawPlayScreen();
+      } else if (gameState === "win") {
+        drawWinScreen();
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+  </script>
 </body>
 </html>
