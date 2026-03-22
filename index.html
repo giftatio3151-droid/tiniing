@@ -57,13 +57,6 @@
     let score = 0;
     let door = null;
 
-    const player = {
-      x: 60,
-      y: 60,
-      size: 32,
-      speed: 10
-    };
-
     const char1 = new Image();
     const char2 = new Image();
 
@@ -92,22 +85,69 @@
       [1,1,1,1,1,1,1,1,1,1]
     ];
 
+    const player = {
+      x: 0,
+      y: 0,
+      size: 32,
+      speed: 10
+    };
+
+    function cellCenter(col, row) {
+      return {
+        x: col * tile + tile / 2,
+        y: row * tile + tile / 2
+      };
+    }
+
+    function placePlayerAtCell(col, row) {
+      const center = cellCenter(col, row);
+      player.x = center.x - player.size / 2;
+      player.y = center.y - player.size / 2;
+    }
+
+    function makeStar(col, row) {
+      const center = cellCenter(col, row);
+      return {
+        x: center.x,
+        y: center.y,
+        collected: false
+      };
+    }
+
+    // 길 칸 중앙에만 별 배치
     const stars = [
-      { x: 110, y: 80, collected: false },
-      { x: 160, y: 210, collected: false },
-      { x: 210, y: 410, collected: false },
-      { x: 310, y: 110, collected: false },
-      { x: 360, y: 260, collected: false },
-      { x: 410, y: 160, collected: false },
-      { x: 110, y: 360, collected: false },
-      { x: 260, y: 310, collected: false },
-      { x: 410, y: 410, collected: false },
-      { x: 310, y: 460, collected: false }
+      makeStar(2, 1),
+      makeStar(5, 1),
+      makeStar(8, 1),
+      makeStar(1, 3),
+      makeStar(4, 3),
+      makeStar(6, 4),
+      makeStar(2, 5),
+      makeStar(8, 5),
+      makeStar(4, 7),
+      makeStar(6, 8)
     ];
 
+    // 시작 위치도 길 중앙
+    placePlayerAtCell(1, 1);
+
+    function resetGameProgress() {
+      score = 0;
+      door = null;
+      for (const s of stars) {
+        s.collected = false;
+      }
+    }
+
     function resetPlayer() {
-      player.x = 60;
-      player.y = 60;
+      placePlayerAtCell(1, 1);
+    }
+
+    function startGameWithCharacter(character) {
+      selectedChar = character;
+      resetGameProgress();
+      resetPlayer();
+      gameState = "play";
     }
 
     function isWall(x, y) {
@@ -132,13 +172,16 @@
     }
 
     function checkStarCollection() {
+      const playerCenterX = player.x + player.size / 2;
+      const playerCenterY = player.y + player.size / 2;
+
       for (const s of stars) {
         if (!s.collected) {
-          const hit =
-            Math.abs((player.x + player.size / 2) - s.x) < 18 &&
-            Math.abs((player.y + player.size / 2) - s.y) < 18;
+          const dx = playerCenterX - s.x;
+          const dy = playerCenterY - s.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
 
-          if (hit) {
+          if (distance < 22) {
             s.collected = true;
             score++;
           }
@@ -146,7 +189,13 @@
       }
 
       if (score === 10 && !door) {
-        door = { x: 405, y: 55, w: 30, h: 42 };
+        const doorCenter = cellCenter(8, 8);
+        door = {
+          x: doorCenter.x - 15,
+          y: doorCenter.y - 20,
+          w: 30,
+          h: 40
+        };
       }
     }
 
@@ -164,18 +213,19 @@
       }
     }
 
-    function startGameWithCharacter(character) {
-      selectedChar = character;
-      resetPlayer();
-      gameState = "play";
-    }
-
     document.addEventListener("keydown", (e) => {
       if (gameState === "select") {
         if (e.key === "1") {
           startGameWithCharacter(char1);
         } else if (e.key === "2") {
           startGameWithCharacter(char2);
+        }
+        return;
+      }
+
+      if (gameState === "win") {
+        if (e.key === "Enter") {
+          gameState = "select";
         }
         return;
       }
@@ -204,12 +254,7 @@
 
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-
       const mx = (e.clientX - rect.left) * scaleX;
-      const my = (e.clientY - rect.top) * scaleY;
-
-      console.log("click:", mx, my);
 
       if (mx < canvas.width / 2) {
         startGameWithCharacter(char1);
@@ -223,11 +268,10 @@
         for (let x = 0; x < COLS; x++) {
           if (maze[y][x] === 1) {
             ctx.fillStyle = "#666";
-            ctx.fillRect(x * tile, y * tile, tile, tile);
           } else {
             ctx.fillStyle = "#1b1b1b";
-            ctx.fillRect(x * tile, y * tile, tile, tile);
           }
+          ctx.fillRect(x * tile, y * tile, tile, tile);
 
           ctx.strokeStyle = "#222";
           ctx.strokeRect(x * tile, y * tile, tile, tile);
@@ -235,19 +279,28 @@
       }
     }
 
-    function drawStarShape(x, y) {
+    function drawStar(x, y) {
       ctx.save();
-      ctx.beginPath();
       ctx.fillStyle = "yellow";
+      ctx.beginPath();
       ctx.arc(x, y, 8, 0, Math.PI * 2);
       ctx.fill();
+
+      ctx.strokeStyle = "#fff4a3";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y);
+      ctx.lineTo(x + 10, y);
+      ctx.moveTo(x, y - 10);
+      ctx.lineTo(x, y + 10);
+      ctx.stroke();
       ctx.restore();
     }
 
     function drawStars() {
       for (const s of stars) {
         if (!s.collected) {
-          drawStarShape(s.x, s.y);
+          drawStar(s.x, s.y);
         }
       }
     }
@@ -258,8 +311,13 @@
       ctx.fillStyle = "#3b82f6";
       ctx.fillRect(door.x, door.y, door.w, door.h);
 
-      ctx.fillStyle = "white";
-      ctx.fillRect(door.x + 10, door.y + 18, 5, 5);
+      ctx.fillStyle = "#cfe7ff";
+      ctx.fillRect(door.x + 5, door.y + 5, door.w - 10, door.h - 10);
+
+      ctx.fillStyle = "#3b82f6";
+      ctx.beginPath();
+      ctx.arc(door.x + door.w - 8, door.y + door.h / 2, 3, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     function drawPlayer() {
@@ -305,7 +363,7 @@
 
       ctx.font = "16px Arial";
       ctx.fillText("또는 키보드 1 / 2", 175, 380);
-      ctx.fillText("왼쪽 반 또는 오른쪽 반을 눌러도 선택돼요", 105, 410);
+      ctx.fillText("별 10개를 모으면 문이 나타나요", 135, 410);
     }
 
     function drawPlayScreen() {
@@ -319,7 +377,7 @@
       ctx.fillText("별: " + score + " / 10", 12, 24);
 
       if (score === 10 && door) {
-        ctx.fillText("문이 나타났어요!", 315, 24);
+        ctx.fillText("문이 나타났어요!", 300, 24);
       }
     }
 
@@ -329,10 +387,11 @@
 
       ctx.fillStyle = "white";
       ctx.font = "36px Arial";
-      ctx.fillText("성공!", 200, 200);
+      ctx.fillText("성공!", 200, 180);
 
       ctx.font = "20px Arial";
-      ctx.fillText("별 10개를 모으고 문에 도착했어요", 100, 250);
+      ctx.fillText("별 10개를 모으고 문에 도착했어요", 100, 230);
+      ctx.fillText("엔터를 누르면 다시 선택 화면으로 가요", 95, 270);
     }
 
     function draw() {
