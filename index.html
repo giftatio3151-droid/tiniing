@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>서연의 미로 게임</title>
+<style>
+  canvas { background: #111; display: block; margin: auto; }
+</style>
+</head>
+<body>
+
+<canvas id="game" width="500" height="500"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+// 상태
+let gameState = "select"; // select → play
+
+// 캐릭터 이미지
+let char1 = new Image();
+char1.src = "다이아나핑1.jpg";
+
+let char2 = new Image();
+char2.src = "다이아나핑2.jpg";
+
+let player = { x: 40, y: 40, size: 30 };
+let selectedChar = null;
+
+let stars = [];
+let score = 0;
+let door = null;
+
+// 미로 (1 = 벽)
+const maze = [
+[1,1,1,1,1,1,1,1,1,1],
+[1,0,0,0,1,0,0,0,0,1],
+[1,0,1,0,1,0,1,1,0,1],
+[1,0,1,0,0,0,0,1,0,1],
+[1,0,1,1,1,1,0,1,0,1],
+[1,0,0,0,0,1,0,0,0,1],
+[1,1,1,1,0,1,1,1,0,1],
+[1,0,0,1,0,0,0,1,0,1],
+[1,0,0,0,0,1,0,0,0,1],
+[1,1,1,1,1,1,1,1,1,1],
+];
+
+const tile = 50;
+
+// 별 생성
+for(let i=0;i<10;i++){
+  stars.push({
+    x: Math.floor(Math.random()*8+1)*tile+15,
+    y: Math.floor(Math.random()*8+1)*tile+15,
+    collected:false
+  });
+}
+
+// 키 입력
+document.addEventListener("keydown", (e)=>{
+  if(gameState !== "play") return;
+
+  let nx = player.x;
+  let ny = player.y;
+
+  if(e.key==="ArrowUp") ny -= 10;
+  if(e.key==="ArrowDown") ny += 10;
+  if(e.key==="ArrowLeft") nx -= 10;
+  if(e.key==="ArrowRight") nx += 10;
+
+  if(!isWall(nx, ny)){
+    player.x = nx;
+    player.y = ny;
+  }
+});
+
+function isWall(x,y){
+  let gx = Math.floor(x/tile);
+  let gy = Math.floor(y/tile);
+  return maze[gy][gx]===1;
+}
+
+// 클릭 선택
+canvas.addEventListener("click",(e)=>{
+  if(gameState==="select"){
+    if(e.offsetX < 250){
+      selectedChar = char1;
+    } else {
+      selectedChar = char2;
+    }
+    gameState="play";
+  }
+});
+
+// 그리기
+function draw(){
+
+  ctx.clearRect(0,0,500,500);
+
+  if(gameState==="select"){
+    ctx.fillStyle="white";
+    ctx.fillText("캐릭터 선택",180,50);
+
+    ctx.drawImage(char1,50,150,100,100);
+    ctx.drawImage(char2,300,150,100,100);
+
+    ctx.fillText("왼쪽 클릭",80,280);
+    ctx.fillText("오른쪽 클릭",320,280);
+    return;
+  }
+
+  // 미로
+  for(let y=0;y<10;y++){
+    for(let x=0;x<10;x++){
+      if(maze[y][x]===1){
+        ctx.fillStyle="gray";
+        ctx.fillRect(x*tile,y*tile,tile,tile);
+      }
+    }
+  }
+
+  // 별
+  stars.forEach(s=>{
+    if(!s.collected){
+      ctx.fillStyle="yellow";
+      ctx.fillRect(s.x,s.y,10,10);
+
+      if(Math.abs(player.x-s.x)<20 && Math.abs(player.y-s.y)<20){
+        s.collected=true;
+        score++;
+      }
+    }
+  });
+
+  // 문 생성
+  if(score===10 && !door){
+    door={x:400,y:400};
+  }
+
+  // 문
+  if(door){
+    ctx.fillStyle="blue";
+    ctx.fillRect(door.x,door.y,30,30);
+
+    if(Math.abs(player.x-door.x)<30 && Math.abs(player.y-door.y)<30){
+      ctx.fillStyle="white";
+      ctx.font="30px Arial";
+      ctx.fillText("성공!",200,250);
+      return;
+    }
+  }
+
+  // 캐릭터
+  if(selectedChar){
+    ctx.drawImage(selectedChar,player.x,player.y,30,30);
+  }
+
+  // 점수
+  ctx.fillStyle="white";
+  ctx.fillText("별: "+score,10,20);
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+</body>
+</html>
